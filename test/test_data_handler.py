@@ -1,5 +1,6 @@
 import pytest  # noqa: F401
-from ConvFinQA_LLM_Project.data_handler import (
+
+from ConvFinQA.data_handler import (
     extract_all_threads,
     extract_thread_details,
 )
