@@ -1,0 +1,54 @@
+repos:
+  # Formats Python code consistently (PEP8-compliant)
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+
+  # Checks code style and potential bugs (unused vars, syntax errors, etc.)
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.2.0
+    hooks:
+      - id: flake8
+
+  # Automatically sorts and organizes imports in Python files
+  - repo: https://github.com/PyCQA/isort
+    rev: 6.0.1
+    hooks:
+      - id: isort
+
+  # Lints SQL queries in your codebase (PostgreSQL dialect in this case)
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.3.1
+    hooks:
+      - id: sqlfluff-lint
+        args: ["--dialect", "postgres"]
+
+  # Miscellaneous checks (lightweight and useful)
+  #    - Prevents committing large files
+  #    - Warns if AWS credentials are committed
+  #    - Ensures files end with a newline
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+
+  # Static type checker for Python (based on type hints)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+
+  # Security scanner for Python code (detects common security issues)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        args: ["-r", "."]
+
+  # Strips output (cells, metadata) from Jupyter notebooks before committing
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
