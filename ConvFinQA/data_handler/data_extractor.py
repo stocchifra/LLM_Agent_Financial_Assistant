@@ -50,17 +50,23 @@ def extract_thread_details(thread):
     return thread_extracted
 
 
-def extract_all_threads(data):
+def extract_all_threads(data, indexes=None):
     """
     Process a list of JSON threads and extract specified keys from each one.
-
     Parameters:
-        data (list): List of thread dictionaries loaded from a JSON file.
-
+    data (list): List of thread dictionaries loaded from a JSON file.
     Returns:
-        list: A list of dictionaries with the extracted information.
+    list: A list of dictionaries with the extracted information.
     """
-    return [extract_thread_details(thread) for thread in data]
+    if indexes is None:
+        return [extract_thread_details(thread) for thread in data]
+    elif isinstance(indexes, list):
+        return [extract_thread_details(data[i]) for i in indexes if i < len(data)]
+    elif isinstance(indexes, tuple):
+        start, end = indexes
+        if end > len(data):
+            raise IndexError("Index out of range")
+        return [extract_thread_details(thread) for thread in data[start:end]]
 
 
 # Example usage:
@@ -73,8 +79,7 @@ if __name__ == "__main__":
         data = json.load(f)
 
     # Extract details from all threads.
-    extracted_threads = extract_all_threads(data)
+    extracted_threads = extract_all_threads(data, indexes=(0, 2))
 
     # Optionally, print the first extracted thread for inspection.
-    print(extracted_threads[0]["pre_text"])
-    print(extracted_threads[0]["qa"][0]["question"])
+    print(extracted_threads[2]["pre_text"])
