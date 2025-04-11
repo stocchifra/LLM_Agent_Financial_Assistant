@@ -8,37 +8,7 @@ from langchain.agents import (
 from langchain.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-
-def prompt_selector(prompt_style):
-    """
-    Selects and constructs a LangChain-compatible prompt and corresponding agent creation function
-    based on the specified prompt style.
-
-    This function supports both custom-defined and hub-based prompt templates. For each supported
-    style, it returns:
-        - A prompt object: either a custom ChatPromptTemplate or a PromptTemplate constructed
-          from a fixed system prompt + a pulled hub prompt.
-        - The associated agent creation function for that style.
-
-    Parameters:
-        prompt_style (str): The identifier for the desired prompt style.
-        Must be one of: "react", "json-chat", "structured-chat-agent", "tools-agent".
-
-    Returns:
-        tuple: (prompt, agent_func)
-            - prompt: a LangChain prompt template object
-            - agent_func: a function to create the corresponding agent
-
-    Raises:
-        ValueError: If the provided prompt_style is not recognized.
-
-    Note:
-        - "json-chat" uses a fully custom prompt template.
-        - Other styles fetch predefined templates from LangChain hub and prepend a consistent
-          system prompt for task-specific instructions.
-    """
-
-    system_prompt = """You are a specialized financial assistant tasked with extracting information 
+system_prompt = """You are a specialized financial assistant tasked with extracting information 
     from an input thread and providing precise answers.
 
     INSTRUCTIONS for specific task:
@@ -59,7 +29,7 @@ def prompt_selector(prompt_style):
     Do not include any additional explanations or commentary outside of the "thought process" field.
     Only output the final precise answers in the "answer" field."""
 
-    human = '''TOOLS
+human = '''TOOLS
     ------
     Assistant can ask the user to use tools to look up information that may be helpful in answering the users original question. The tools the human can use are:
 
@@ -96,6 +66,36 @@ def prompt_selector(prompt_style):
     Here is the user's input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):
 
     {input}'''
+
+
+def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
+    """
+    Selects and constructs a LangChain-compatible prompt and corresponding agent creation function
+    based on the specified prompt style.
+
+    This function supports both custom-defined and hub-based prompt templates. For each supported
+    style, it returns:
+        - A prompt object: either a custom ChatPromptTemplate or a PromptTemplate constructed
+          from a fixed system prompt + a pulled hub prompt.
+        - The associated agent creation function for that style.
+
+    Parameters:
+        prompt_style (str): The identifier for the desired prompt style.
+        Must be one of: "react", "json-chat", "structured-chat-agent", "tools-agent".
+
+    Returns:
+        tuple: (prompt, agent_func)
+            - prompt: a LangChain prompt template object
+            - agent_func: a function to create the corresponding agent
+
+    Raises:
+        ValueError: If the provided prompt_style is not recognized.
+
+    Note:
+        - "json-chat" uses a fully custom prompt template.
+        - Other styles fetch predefined templates from LangChain hub and prepend a consistent
+          system prompt for task-specific instructions.
+    """
 
     custom_prompt_template = ChatPromptTemplate.from_messages(
         [
@@ -134,6 +134,12 @@ def prompt_selector(prompt_style):
     # Determine the hub prompt.
     if "custom_prompt" in config:
         prompt = config["custom_prompt"]
+    # if structured-chat-agent or tools-agent, use the hub prompt
+    elif (
+        config["hub_id"] == "hwchase17/structured-chat-agent"
+        or config["hub_id"] == "hwchase17/openai-tools-agent"
+    ):
+        prompt = hub.pull(config["hub_id"])
     else:
         hub_prompt = hub.pull(config["hub_id"])
         # If hub_prompt is a PromptTemplate, extract the underlying string.
