@@ -9,7 +9,7 @@ repos:
     rev: 7.2.0
     hooks:
       - id: flake8
-        args: ["--max-line-length=300", "--ignore=W291"]
+        args: ["--max-line-length=300", "--ignore=W291,W605"]
 
 
   # Automatically sorts and organizes imports in Python files

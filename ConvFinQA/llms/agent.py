@@ -72,17 +72,6 @@ if __name__ == "__main__":
 
     model_input = extract_financial_data(single_sample)
 
-    # print("Model input:", model_input)
-
-    # # Remove top-level 'exe_ans' if present
-    # single_sample.pop("exe_ans", None)
-
-    # # Remove 'exe_ans' from each QA field
-    # for key in list(single_sample.keys()):
-    #     if key == "qa" or key.startswith("qa_"):
-    #         if isinstance(single_sample[key], dict):
-    #             single_sample[key].pop("exe_ans", None)
-
     response = agent_executor.invoke(
         {
             "input": f"""Given the input extract the relevant data and then answer all the questions {model_input}.

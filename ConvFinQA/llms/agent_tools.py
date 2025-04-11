@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, Union
+import os
+from typing import Union
 
 from langchain_core.tools import Tool
 
@@ -50,31 +51,52 @@ def extract_all_threads_fun(data):
     return [extract_thread_details_fun(thread) for thread in data]
 
 
-def extract_financial_data(input_str: str) -> Dict[str, Any]:
+def extract_financial_data(input_data) -> str:
     """
-    Extract financial data from input JSON string or dictionary
+    Extract financial data from the input, which can be:
+    - A file path to a JSON file,
+    - A JSON-formatted string, or
+    - An already loaded JSON object (list or dictionary).
 
     Args:
-        input_str: JSON string or dictionary containing financial thread data
+        input_data: A string representing either a file path to a JSON file or a JSON-formatted string,
+                    or already loaded JSON (list or dict).
 
     Returns:
-        Dictionary with extracted financial information
+        A JSON-formatted string representing the extracted financial information.
     """
     try:
-        # Handle the case where input might be a string or already a dictionary/list
-        if isinstance(input_str, str):
-            data = json.loads(input_str)
+        # If input is already a loaded JSON (list or dict), use it directly.
+        if isinstance(input_data, (list, dict)):
+            data = input_data
+        # If input is a string, determine if it is a file path or a JSON string.
+        elif isinstance(input_data, str):
+            if os.path.exists(input_data):
+                # The string is a valid file path, so load the JSON data from the file.
+                with open(input_data, "r") as f:
+                    data = json.load(f)
+            else:
+                # The string is not a file path; assume it is a JSON-formatted string.
+                data = json.loads(input_data)
         else:
-            data = input_str
+            raise ValueError(
+                "Invalid input type. Provide a file path, a JSON string, or loaded JSON data."
+            )
 
-        # Process single thread or list of threads accordingly
+        # Depending on the type of JSON data (a single thread as dict or multiple threads as list),
+        # call the proper processing function.
         if isinstance(data, list):
             financial_data = extract_all_threads_fun(data)
-        else:
+        elif isinstance(data, dict):
             financial_data = extract_thread_details_fun(data)
-        return financial_data
+        else:
+            raise ValueError("The provided JSON data is neither a list nor a dict.")
+
+        return json.dumps(financial_data, indent=2)
     except Exception as e:
-        return {"error": f"Failed to extract financial data: {str(e)}"}
+        return json.dumps(
+            {"error": f"Failed to extract financial data: {str(e)}"}, indent=2
+        )
 
 
 def perform_math_calculus(expression: str) -> Union[float, str]:
@@ -109,28 +131,46 @@ tools = [
         """,
         func=perform_math_calculus,
     ),
-    # Tool(
-    #     name="financial_data_extraction",
-    #     description="""Extracts structured financial information from context.
-    #     Input: JSON string or dictionary containing financial thread data.
-    #     Output: Dictionary with these keys:
-    #     - pre_text: List of text paragraphs appearing before the table
-    #     - post_text: List of text paragraphs appearing after the table
-    #     - table: List of lists representing tabular data, where the first list typically contains column identifiers
-    #     - id: Document identifier string (e.g., 'Single_JKHY/2009/page_28.pdf-3')
-    #     - qa: List of dictionaries containing only the question to be answered
-    #     Example output structure:
-    #     {
-    #         "pre_text": ["Paragraph about financial performance...", "Details about revenue..."],
-    #         "post_text": ["Information about cash flow...", "Details about fiscal year..."],
-    #         "table": [
-    #             ["2008", "year ended june 30 2009 2008", "year ended june 30 2009 2008"],
-    #             ["net income", "$ 103102", "$ 104222", "$ 104681"],
-    #             ["non-cash expenses", "74397", "70420", "56348"]
-    #         ],
-    #         "qa": [{"question": "what was the percentage change in the net cash from operating activities from 2008 to 2009"}]
-    #     }
-    #     """,
-    #     func=extract_financial_data,
-    # )
+    Tool(
+        name="financial_data_extraction",
+        description="""
+        Extracts structured financial information from context using `extract_financial_data`.
+
+        **Input**:
+        - A string representing:
+        - A file path to a JSON file,
+        - A JSON-formatted string,
+        - Or an already loaded JSON object (list or dict) containing financial thread data.
+
+        **Output**:
+        - A JSON-formatted string that includes these keys:
+        - "pre_text": A list of text paragraphs that appear before the table,
+        - "post_text": A list of text paragraphs that appear after the table,
+        - "table": A list of lists representing tabular data; the first sub-list typically contains column identifiers,
+        - "id": Document identifier (e.g., "Single_JKHY/2009/page_28.pdf-3"),
+        - "qa": A list of dictionaries containing at least the question(s) to be answered.
+
+        **Example Output**:
+        ```json
+        {
+        "pre_text": [
+            "Paragraph about financial performance...",
+            "Details about revenue..."
+        ],
+        "post_text": [
+            "Information about cash flow...",
+            "Details about fiscal year..."
+        ],
+        "table": [
+            ["2008", "year ended june 30 2009 2008", "year ended june 30 2009 2008"],
+            ["net income", "$ 103102", "$ 104222", "$ 104681"],
+            ["non-cash expenses", "74397", "70420", "56348"]
+        ],
+        "qa": [
+            {
+            "question": "what was the percentage change in the net cash from operating activities from 2008 to 2009"
+            }
+        """,
+        func=extract_financial_data,
+    ),
 ]
