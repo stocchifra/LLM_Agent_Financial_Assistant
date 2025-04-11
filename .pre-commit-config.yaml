@@ -9,7 +9,7 @@ repos:
     rev: 7.2.0
     hooks:
       - id: flake8
-        args: ["--max-line-length=150", "--ignore=W291"]
+        args: ["--max-line-length=300", "--ignore=W291"]
 
 
   # Automatically sorts and organizes imports in Python files
@@ -17,7 +17,7 @@ repos:
     rev: 6.0.1
     hooks:
       - id: isort
-        args: ["--profile=black", "--line-length=150"]
+        args: ["--profile=black", "--line-length=300"]
 
 
   # Lints SQL queries in your codebase (PostgreSQL dialect in this case)
