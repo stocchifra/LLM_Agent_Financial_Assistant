@@ -4,7 +4,7 @@ import tempfile
 
 import pytest  # noqa: F401
 
-from ConvFinQA import (
+from src import (
     extract_all_threads,
     extract_thread_details,
     open_json_file,

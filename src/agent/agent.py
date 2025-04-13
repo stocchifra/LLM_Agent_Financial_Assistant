@@ -33,13 +33,6 @@ agent = create_react_agent(
     prompt=prompt,
 )
 
-# # Initialize the agent with the tools
-# agent = initialize_agent(
-#     tools=tools,
-#     llm=llm,
-#     agent_type="zero-shot-react-description",
-#     verbose=True,
-# )
 
 # create an agent executor with the agent and tools
 agent_executor = AgentExecutor(
