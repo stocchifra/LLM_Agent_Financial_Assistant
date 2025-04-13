@@ -65,7 +65,7 @@ def extract_thread_details(thread):
     return thread_extracted
 
 
-def extract_all_threads(data_path, indexes=None):
+def extract_selected_threads(data, indexes=None):
     """
     Extrat data from a JSON file.
     Process a list of JSON threads and extract specified keys from each one.
@@ -74,7 +74,7 @@ def extract_all_threads(data_path, indexes=None):
     Returns:
     list: A list of dictionaries with the extracted information.
     """
-    data = open_json_file(data_path)
+    # data = open_json_file(data_path)
 
     if indexes is None:
         return [extract_thread_details(thread) for thread in data]
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     data_path = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
 
     # Extract details from all threads.
-    extracted_threads = extract_all_threads(data_path, indexes=(0, 2))
+    extracted_threads = extract_selected_threads(data_path, indexes=(0, 2))
 
     # Optionally, print the first extracted thread for inspection.
     print(extracted_threads)

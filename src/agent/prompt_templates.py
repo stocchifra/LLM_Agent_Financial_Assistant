@@ -9,7 +9,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 system_prompt = """You are a specialized financial assistant tasked with extracting information 
-    from an input thread and providing precise answers.
+    from an input thread and ALWAYS PROVIDING PRECISE ANSWERS.
 
     INSTRUCTIONS for specific task:
     - First, recognize and extract the following fields from the provided input: pre_text, post_text, table, 

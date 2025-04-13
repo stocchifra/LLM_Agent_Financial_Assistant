@@ -1,6 +1,5 @@
 import json
 
-from agent_tools import extract_financial_data, tools
 from dotenv import load_dotenv
 from langchain.agents import (
     AgentExecutor,
@@ -10,7 +9,11 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # noqa: F401
 from langchain_google_vertexai import ChatVertexAI
 from langchain_openai import ChatOpenAI
-from prompt_templates import prompt_selector, system_prompt  # noqa: F401
+
+import warnings_config  # noqa: F401
+
+from .agent_tools import tools
+from .prompt_templates import prompt_selector, system_prompt  # noqa: F401
 
 # load environment variables from .env file
 load_dotenv()
@@ -129,7 +132,7 @@ def agent_executor_builder(
 
 
 if __name__ == "__main__":
-    memory_flag = True
+    memory_flag = False
     data_path = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
     # Open the JSON file and load the data.
     with open(data_path, "r") as f:
@@ -137,7 +140,7 @@ if __name__ == "__main__":
 
     # print(type(data))
 
-    single_sample = data[0]
+    single_sample = data[2]
     exact_answers = []
     for key in single_sample:
         if key == "qa" or key.startswith("qa_"):
@@ -145,10 +148,9 @@ if __name__ == "__main__":
             if isinstance(qa_data, dict):
                 exact_answers.append(qa_data.get("exe_ans", None))
 
-    print("Exact answers:", exact_answers)
+    # model_input = single_sample
 
-    model_input = extract_financial_data(single_sample)
-    # model_input = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/test_private.json"
+    model_input = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
 
     agent_executor, memory = agent_executor_builder(
         model="gpt-4o",
@@ -157,8 +159,8 @@ if __name__ == "__main__":
         temperature=0,
         tools=tools,
         # prompt_style="tools-agent",
-        # prompt_style="react",
-        prompt_style="structured-chat-agent",
+        prompt_style="react",
+        # prompt_style="structured-chat-agent",
         # prompt_style="json-chat",
         memory_flag=memory_flag,
     )
@@ -185,7 +187,7 @@ if __name__ == "__main__":
     else:
         response = agent_executor.invoke(
             {
-                "input": f"""Given the input extract the relevant data and then answer all the questions {model_input}."""
+                "input": f"""Given the input if you can extract the data at index 2 otherwise extract all the data and then answer the questions {model_input}."""
             }
         )
 
@@ -193,5 +195,6 @@ if __name__ == "__main__":
         # Split the 'output' string by comma and strip whitespace
         answers = response["output"].split(",")
         intermediate_steps = response["intermediate_steps"]
-        print("Intermediate steps:", intermediate_steps)
+        # print("Intermediate steps:", intermediate_steps)
         print("Answers:", answers)
+        print("Exact answers:", exact_answers)
