@@ -1,17 +1,52 @@
+import ast
 import json
 import os
+import re
 from typing import Union
 
 from langchain_core.tools import Tool
 
-from utils import extract_selected_threads, open_json_file
+from src.utils import open_json_file
+
+
+def strip_code_fence(input_str: str) -> str:
+    """
+    Removes common multiline string delimiters from the input string.
+
+    This function detects and removes:
+      - Triple backticks (```), including those with a language indicator (e.g., ```json)
+      - Triple double quotes, including ones with a language indicator
+      - Triple single quotes ('''...''')
+
+    If none of these delimiters are detected, the string is returned as-is.
+    """
+    # Normalize newlines to \n
+    input_str = input_str.replace("\r\n", "\n").strip()
+
+    # List of regex patterns to try.
+    patterns = [
+        r"^```(?:[^\n]*)\s*\n(.*?)\s*```$",  # triple backticks with optional language tag
+        r'^"""(?:[^\n]*)\s*\n(.*?)\s*"""$',  # triple double quotes with optional language tag
+        r"^'''(?:[^\n]*)\s*\n(.*?)\s*'''$",  # triple single quotes with newline after the opening fence
+        r'^"""(.*?)"""$',  # triple double quotes without newlines
+        r"^'''(.*?)'''$",  # triple single quotes without newlines
+    ]
+
+    for pattern in patterns:
+        regex = re.compile(pattern, re.DOTALL)
+        m = regex.match(input_str)
+        if m:
+            return m.group(1).strip()
+    return input_str
 
 
 def extract_thread_details_fun(thread):
     """
     Extract required fields from a single thread.
+
     Parameters:
       thread (dict): A dictionary representing a JSON thread that may contain various keys.
+
     Returns:
       dict: A dictionary with extracted thread details.
     """
@@ -27,32 +62,48 @@ def extract_thread_details_fun(thread):
             if isinstance(qa_data, dict):
                 qa_dict = {"question": qa_data.get("question", None)}
                 thread_extracted["qa"].append(qa_dict)
+            elif isinstance(qa_data, list):
+                # Process a list of QA dictionaries
+                for item in qa_data:
+                    if isinstance(item, dict):
+                        qa_dict = {"question": item.get("question", None)}
+                        thread_extracted["qa"].append(qa_dict)
     return thread_extracted
 
 
-# def extract_selected_threads(data, indexes=None):
-#     """
-#     Process a list of JSON threads and extract specified keys from each one.
-#     Parameters:
-#       data (list): List of thread dictionaries loaded from a JSON file.
-#       indexes: None, a tuple (start, end), or a list of specific indices.
-#     Returns:
-#       list: A list of dictionaries with the extracted information.
-#     """
-#     if indexes is None:
-#         return [extract_thread_details_fun(thread) for thread in data]
-#     elif isinstance(indexes, list):
-#         return [extract_thread_details_fun(data[i]) for i in indexes if i < len(data)]
-#     elif isinstance(indexes, tuple):
-#         start, end = indexes
-#         if end > len(data):
-#             raise IndexError("Index out of range")
-#         return [extract_thread_details_fun(thread) for thread in data[start:end]]
+def extract_selected_threads(data, indexes=None):
+    """
+    Extracts data from the provided threads.
+
+    Parameters:
+      data (list): A list of threads loaded from JSON.
+      indexes: Can be None, a single integer, a list of indices, or a tuple (start, end) for a contiguous slice.
+
+    Returns:
+      list: A list of dictionaries containing extracted thread details.
+    """
+    if indexes is None:
+        return [extract_thread_details_fun(thread) for thread in data]
+    elif isinstance(indexes, int):
+        # Handle a single index by converting it to a list.
+        if indexes < len(data):
+            return [extract_thread_details_fun(data[indexes])]
+        else:
+            return []
+    elif isinstance(indexes, list):
+        return [extract_thread_details_fun(data[i]) for i in indexes if i < len(data)]
+    elif isinstance(indexes, tuple):
+        start, end = indexes
+        if end > len(data):
+            raise IndexError("Index out of range")
+        return [extract_thread_details_fun(thread) for thread in data[start:end]]
+    else:
+        raise TypeError("indexes must be None, an int, a list, or a tuple.")
 
 
 def extract_financial_data(input_data):
     """
-    Extract financial data from the input, which can be provided as a string.
+    Extract financial data from the input.
 
     Accepted input formats:
     1. A JSON-formatted string representing a dictionary with the following structure:
@@ -62,60 +113,82 @@ def extract_financial_data(input_data):
              "indexes": <optional_indexes_parameter>
            }
          }
-       - file_path: Can be a file path to a JSON file, a JSON-formatted string,
-         or an already loaded JSON object (list or dict) containing financial thread data.
-       - indexes: (Optional) Allows you to specify a subset of threads. It can be:
-           - None: Process the entire input.
-           - A tuple: (start, end) to extract a contiguous slice of threads.
-             For example, (90, 91) extracts only the thread at index 90.
-           - A list: e.g., [3, 7, 15] to extract only those specific threads.
+       - file_path:
+         - If this string ends with ".json", it is treated as a file path and loaded from disk.
+         - Otherwise, it is treated as direct JSON content and processed as-is (ignoring indexes).
+       - indexes: (Optional) When a valid file path is provided, this can be used to specify a subset
+         of threads.
 
-    2. A plain string representing a file path or a JSON-formatted string.
+    2. A plain string representing either a file path (ending with .json) or a JSON-formatted string
+       containing the data directly.
 
     Returns:
-      A dictionary representing the extracted financial information.
+      A list of dictionaries representing the extracted financial information. On error, returns a dictionary
+      with an "error" key. As a backup, if no proper extraction is possible but date patterns (YYYY-MM-DD) are found,
+      they are returned in an "extracted_dates" field.
     """
     try:
-        # Since the LLM always outputs a string, first try to parse it as JSON.
-        parsed = None
-        try:
-            parsed = json.loads(input_data)
-        except Exception:
-            parsed = None
+        # If input_data is a string, strip any markdown code block markers.
+        if isinstance(input_data, str):
+            input_data = strip_code_fence(input_data)
+            input_data = input_data.strip()
+            # Replace common problematic smart quotes with standard double quotes.
+            input_data = input_data.replace("“", '"').replace("”", '"')
+            print("Raw input after stripping code fence:", repr(input_data))
+            try:
+                parsed = json.loads(input_data)
+            except json.JSONDecodeError as je:
+                print("JSON decoding failed:", je)
+                # Fallback to ast.literal_eval if JSON decoding fails.
+                try:
+                    parsed = ast.literal_eval(input_data)
+                except Exception as e:
+                    raise ValueError(
+                        "Parsing failed using both json.loads and ast.literal_eval: "
+                        + str(e)
+                    )
+        else:
+            parsed = input_data
 
-        if parsed is not None and isinstance(parsed, dict) and "tool_input" in parsed:
+        if isinstance(parsed, dict) and "tool_input" in parsed:
             tool_input = parsed["tool_input"]
             file_path = tool_input.get("file_path")
             indexes = tool_input.get("indexes", None)
             if not file_path:
-                raise ValueError("File path is required in the tool_input")
-            # Ensure file_path is a string; if it is not, attempt to convert it.
+                raise ValueError("The 'file_path' field is required in the tool_input.")
             if not isinstance(file_path, str):
-                # If file_path is a dict, try to extract a string representation from a known key.
-                if isinstance(file_path, dict) and "file" in file_path:
-                    file_path = file_path["file"]
+                file_path = str(file_path)
+
+            # If file_path ends with '.json', treat it as a file path.
+            if file_path.strip().endswith(".json"):
+                if os.path.exists(file_path):
+                    data = open_json_file(file_path)
                 else:
-                    file_path = str(file_path)
-            if os.path.exists(file_path):
-                # with open(file_path, "r") as f:
-                #     data = json.load(f)
-                data = open_json_file(file_path)
+                    raise ValueError(f"File not found: {file_path}")
             else:
-                # If the file doesn't exist, assume file_path holds the actual JSON data.
-                data = json.loads(file_path)
+                # Otherwise, try to parse file_path as direct JSON content.
+                try:
+                    data = json.loads(file_path)
+                except Exception:
+                    raise ValueError(
+                        "Provided file_path does not end with .json and is not valid JSON content."
+                    )
+                indexes = None  # Ignore indexes if direct JSON content is provided.
         else:
-            # If parsing as JSON didn't return a structured dict, treat input_data as a file path or raw JSON string.
-            if os.path.exists(input_data):
-                with open(input_data, "r") as f:
-                    data = json.load(f)
-                indexes = None
-            else:
-                data = json.loads(input_data)
-                indexes = None
+            data = parsed
+            indexes = None
 
         financial_data = extract_selected_threads(data, indexes)
         return financial_data
+
     except Exception as e:
+        # Backup: attempt to extract any date patterns (YYYY-MM-DD) from the input.
+        pattern = r"\d{4}-\d{2}-\d{2}"
+        extracted_dates = re.findall(
+            pattern, input_data if isinstance(input_data, str) else str(input_data)
+        )
+        if extracted_dates:
+            return {"extracted_dates": extracted_dates}
         return {"error": f"Failed to extract financial data: {str(e)}"}
 
 
@@ -152,56 +225,53 @@ tools = [
         func=perform_math_calculus,
     ),
     Tool(
-        name="financial_data_extraction",
+        name="extract_financial_informations",
         description="""
-        Extracts structured financial information from context using the function `extract_financial_data`.
+    Extracts structured financial information using the `extract_financial_data` function.
 
-        **Important Note about File Paths**:
-        - The `file_path` field in `tool_input` must be a valid path to an existing JSON file (e.g., "data/financial_threads.json"). 
-        - Do **not** provide a lengthy passage of text or a PDF reference as the `file_path`; the tool will fail if it cannot locate the file on disk or parse its content as JSON.
-        - If you provide a JSON object/string directly instead of a file path, the tool will ignore the `indexes` parameter and process the entire data.
+    **Trigger Condition:**
+    - This tool is ONLY triggered when the input is a JSON string that represents a file path ending with ".json".
+    - If the input is a JSON-formatted string containing data (i.e., the financial information is embedded directly), 
+      this tool should NOT be triggered and the model will elaborate the string directly.
 
-        **Backup Plan**:
-        - If the tool fails to parse the file or JSON data, it will attempt a manual extraction of any date patterns (in the format YYYY-MM-DD) from the provided input string. If no date is found, it will return the original error message.
+    **Accepted Input Formats:**
 
-        **Input**:
-        - A JSON-formatted string representing a dictionary with the following structure:
-        {
+    **1. File Path Input (with indexes):**
+    - The input must be a JSON string representing a dictionary with a `tool_input` key.
+    - The `tool_input` value must be a dictionary with:
+        - `file_path`: A string that **must end with .json**. This specifies the path to a JSON file on disk.
+        - `indexes` (optional): 
+            - If provided, it can be an integer (for a single thread), a list of indices, or a tuple (start, end)
+              to extract a specific subset of threads from the file.
+    - **Example:**
+        '''{
             "tool_input": {
-            "file_path": "Path/to/your/file.json",
-            "indexes": <optional_indexes_parameter>
+                "file_path": "data/financial_threads.json",
+                "indexes": [3, 7, 15]
             }
-        }
-        where:
-        - `file_path`: A string pointing to a JSON file (e.g., "data/financial_threads.json"), or a JSON object/string to be processed directly (in which case `indexes` is ignored).
-        - `indexes` (optional): A subset of threads to process (tuple or list). Ignored if `file_path` is a direct JSON string/object.
+        }'''
 
-        **Output**:
-        - A dictionary containing:
-        - "pre_text": A list of text paragraphs that appear before the table,
-        - "post_text": A list of text paragraphs that appear after the table,
-        - "table": A list of lists representing tabular data (the first sub-list typically contains column identifiers),
-        - "qa": A list of dictionaries containing at least the question(s) to be answered.
-        - If an unrecoverable error occurs, a dictionary with an "error" field is returned.
-        - If the tool cannot parse the file but finds date patterns in the input, it returns them in the "extracted_dates" list.
+    **2. Direct JSON Content Input (Not Triggering This Tool):**
+    - If the input is a JSON-formatted string representing the data directly 
+      (i.e., not wrapped in a `tool_input` dictionary), this tool should NOT be triggered.
+    - **Example:**
+        '''{
+            "pre_text": ["Example introduction"],
+            "post_text": ["Example conclusion"],
+            "table": [["Column1", "Column2"], ["Value1", "Value2"]],
+            "qa": [{"question": "What is the key metric?"}]
+        }'''
 
-        **Usage Examples**:
-
-        - **Extract the entire JSON file (all threads)**:
-        result = extract_financial_data('{"tool_input": {"file_path": "data/financial_threads.json"}}')
-
-        - **Extract a single thread at a specific index (e.g., index 90)**:
-        result = extract_financial_data('{"tool_input": {"file_path": "data/financial_threads.json", "indexes": [90, 91]}}')
-
-        - **Extract a range of threads (e.g., threads from index 10 to 19)**:
-        result = extract_financial_data('{"tool_input": {"file_path": "data/financial_threads.json", "indexes": [10, 20]}}')
-
-        - **Extract specific threads using a list of indices (e.g., indices 3, 7, and 15)**:
-        result = extract_financial_data('{"tool_input": {"file_path": "data/financial_threads.json", "indexes": [3, 7, 15]}}')
-
-        - **Provide a JSON object/string directly** (ignoring `indexes`):
-        result = extract_financial_data('{"pre_text": ["Example text"], "post_text": ["More text"], "table": [[...]], "qa": [{"question": "Example?"}]}')
-        """,
+    **Output:**
+    - The function returns a list of dictionaries, each containing:
+        - "pre_text": A list of paragraphs that appear before the table.
+        - "post_text": A list of paragraphs that appear after the table.
+        - "table": A nested list representing tabular data.
+        - "qa": A list of dictionaries, each containing at least a "question".
+    - If an error occurs, a dictionary with an "error" key is returned.
+    - As a backup, if no proper extraction is possible but date patterns (YYYY-MM-DD) are found in the input,
+      they are returned in an "extracted_dates" field.
+    """,
         func=extract_financial_data,
     ),
 ]

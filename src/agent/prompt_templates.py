@@ -9,74 +9,93 @@ from langchain.prompts import PromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 system_prompt = """You are a specialized financial assistant tasked with extracting information 
-    from an input thread and ALWAYS PROVIDING PRECISE ANSWERS.
+from an input thread and ALWAYS PROVIDING PRECISE ANSWERS.
 
-    INSTRUCTIONS for specific task:
-    - First, recognize and extract the following fields from the provided input: pre_text, post_text, table, 
-    and all QA pairs (keys: "qa", "qa_0", "qa_1", ...). If any field is missing, default to an empty string.
-    - For each QA pair:
-        1. Identify the question.
-        2. From the extracted data, locate the numbers required to answer the question (e.g., for division, 
-        identify the dividend and divisor) and, if needed, elaborate on the mathematical function.
-        3. If a calculation is needed, invoke the arithmetic tool accordingly. If the arithmetic tool fails, 
-        provide a clear error message.
-    - When providing an answer:
-        - For binary answers, output only "yes" or "no."
-        - For numerical answers, output a number with exactly 4 decimal places.
-        - For percentages, convert them to decimal form with exactly 4 decimal places 
-        (e.g., 10.123% → 0.1012).
+INSTRUCTIONS for specific task:
+1. Extract the following fields from the provided input: pre_text, post_text, table, and all QA pairs 
+   (keys: "qa", "qa_0", "qa_1", ...). If any field is missing, use an empty string.
+2. For each QA pair:
+   - Identify the question.
+   - Locate the relevant numbers and data needed to answer it (e.g., for division, identify the dividend and divisor).
+   - **Break every arithmetic operation into its basic arithmetic steps. For each operation (e.g., addition, subtraction, multiplication, division), you MUST use the arithmetic_calculator tool. Do not perform arithmetic internally.**
+   - If a calculation fails or data is missing, include a clear error message in your internal chain-of-thought (but not in the final answer).
 
-    Do not include any additional explanations or commentary outside of the "thought process" field.
-    Only output the final precise answers in the "answer" field."""
+ANSWER FORMAT REQUIREMENTS YOU MUST FOLLOW THEM!:
+- The final answer must be in the exact format (e.g., "0.6154, -0.4444" or "0.1012, yes").
+- All numerical answers must be rounded to exactly 4 decimal places.
+- Percentages must be converted to decimal form and rounded to 4 decimal places (e.g., "10.123%" → "0.1012").
+- Binary answers must be lowercase strings: "yes" or "no" (without any punctuation or additional text).
+- Do NOT include any labels, units, or any extra text – only the precise answer is expected.
 
-human = '''TOOLS
-    ------
-    Assistant can ask the user to use tools to look up information that may be helpful in answering the users original question. The tools the human can use are:
+THOUGHT PROCESS AND TOOL USAGE:
+- Always break down your calculations step-by-step in your internal chain-of-thought.
+- Do NOT show your internal chain-of-thought in the final answer.
+- When you detect any arithmetic computations, do not calculate the results yourself – instead, decompose the operation into smaller arithmetic steps and invoke the arithmetic_calculator tool for each step.
+- If any ambiguity exists in the calculations, clarify it in your internal reasoning before finalizing your answer.
+- Use a structured approach: for each arithmetic operation, indicate the numbers involved, the operation to be performed, and clearly call the arithmetic_calculator tool to perform that operation.
 
-    {tools}
+Think step-by-step and ensure clarity in your reasoning. Break down complex operations into simpler steps, 
+and always invoke the arithmetic_calculator tool for any arithmetic computations.
 
-    RESPONSE FORMAT INSTRUCTIONS
-    ----------------------------
-
-    When responding to me, please output a response in one of two formats:
-
-    **Option 1:**
-    Use this if you want the human to use a tool.
-    Markdown code snippet formatted in the following schema:
-
-    """json
-    {{
-        "action": string, \ The action to take. Must be one of {tool_names}
-        "action_input": string \ The input to the action
-    }}
-    """
-
-    **Option #2:**
-    Use this if you want to respond directly to the human. Markdown code snippet formatted in the following schema:
-
-    """json
-    {{
-        "action": "Final Answer",
-        "action_input": string \ You should put what you want to return to use here
-    }}
-    """
-
-    USER'S INPUT
-    --------------------
-    Here is the user's input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):
-
-    {input}'''
+To finish your reasoning and return the answer, respond with:
+"""
 
 
-def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
+human = """TOOLS ------
+Assistant can ask the user to use tools to look up information that may be helpful in answering the user's original question. The tools the human can use are: {tools}
+
+**IMPORTANT: For any arithmetic computation, you MUST invoke the arithmetic_calculator tool. Do not perform computations internally.**
+
+REASONING PROCESS
+----------------
+When solving problems, follow these steps:
+1. Understand the question and identify what information needs to be extracted
+2. Plan your approach step-by-step
+3. Verify what data you have and what you need to calculate
+4. Break down complex calculations into simple arithmetic operations
+5. Double-check your reasoning before finalizing your answer
+6. Format your final answer precisely according to requirements
+
+RESPONSE FORMAT INSTRUCTIONS
+----------------------------
+When responding to me, please output a response in one of two formats:
+
+**Option 1:** Use this if you want the human to use a tool.
+Markdown code snippet formatted in the following schema:
+
+```json
+{{
+    "action": string, \ The action to take. Must be one of {tool_names}
+    "action_input": string \ The input to the action.
+}}
+```
+
+**Option #2:**
+Use this if you want to respond directly to the human. Markdown code snippet formatted in the following schema:
+
+```json
+{{
+    "action": "Final Answer",
+    "action_input": string \ You should put what you want to return to the user here.
+}}
+```
+
+USER'S INPUT
+--------------------
+Here is the user's input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):
+
+{input}
+"""
+
+
+def prompt_selector(prompt_style):
     """
     Selects and constructs a LangChain-compatible prompt and corresponding agent creation function
     based on the specified prompt style.
 
     This function supports both custom-defined and hub-based prompt templates. For each supported
     style, it returns:
-        - A prompt object: either a custom ChatPromptTemplate or a PromptTemplate constructed
-          from a fixed system prompt + a pulled hub prompt.
+        - A prompt object: either a custom ChatPromptTemplate or a PromptTemplate from hub
         - The associated agent creation function for that style.
 
     Parameters:
@@ -90,16 +109,14 @@ def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
 
     Raises:
         ValueError: If the provided prompt_style is not recognized.
-
-    Note:
-        - "json-chat" uses a fully custom prompt template.
-        - Other styles fetch predefined templates from LangChain hub and prepend a consistent
-          system prompt for task-specific instructions.
     """
-
+    # Define custom prompt template for JSON chat
     custom_prompt_template = ChatPromptTemplate.from_messages(
         [
-            ("system", system_prompt),
+            (
+                "system",
+                "",
+            ),  # Empty placeholder - system prompt will be passed separately
             MessagesPlaceholder("chat_history", optional=True),
             ("human", human),
             MessagesPlaceholder("agent_scratchpad"),
@@ -113,9 +130,8 @@ def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
             "agent_func": create_react_agent,
         },
         "json-chat": {
-            # For json-chat, we assume you want to use a custom prompt template already defined.
             "custom_prompt": custom_prompt_template,
-            "agent_func": create_json_chat_agent,  # Ensure create_json_chat_agent is imported/defined.
+            "agent_func": create_json_chat_agent,
         },
         "structured-chat-agent": {
             "hub_id": "hwchase17/structured-chat-agent",
@@ -123,7 +139,7 @@ def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
         },
         "tools-agent": {
             "hub_id": "hwchase17/openai-tools-agent",
-            "agent_func": create_tool_calling_agent,  # Adjust this based on availability.
+            "agent_func": create_tool_calling_agent,
         },
     }
 
@@ -131,28 +147,10 @@ def prompt_selector(prompt_style, system_prompt=system_prompt, human=human):
     if config is None:
         raise ValueError("Invalid prompt style selected.")
 
-    # Determine the hub prompt.
+    # Determine the prompt
     if "custom_prompt" in config:
         prompt = config["custom_prompt"]
-    # if structured-chat-agent or tools-agent, use the hub prompt
-    elif (
-        config["hub_id"] == "hwchase17/structured-chat-agent"
-        or config["hub_id"] == "hwchase17/openai-tools-agent"
-    ):
-        prompt = hub.pull(config["hub_id"])
     else:
-        hub_prompt = hub.pull(config["hub_id"])
-        # If hub_prompt is a PromptTemplate, extract the underlying string.
-        if hasattr(hub_prompt, "template"):
-            hub_prompt_str = hub_prompt.template
-        else:
-            hub_prompt_str = hub_prompt
-
-        # Combine your custom system prompt with the hub prompt string.
-        combined_prompt_str = system_prompt + "\n\n" + hub_prompt_str
-
-        # Wrap the combined prompt string in a PromptTemplate.
-        # Adjust the input_variables as needed. Here we assume it needs an "input" variable.
-        prompt = PromptTemplate(template=combined_prompt_str, input_variables=["input"])
+        prompt = hub.pull(config["hub_id"])
 
     return prompt, config["agent_func"]

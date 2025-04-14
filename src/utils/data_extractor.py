@@ -65,7 +65,7 @@ def extract_thread_details(thread):
     return thread_extracted
 
 
-def extract_selected_threads(data, indexes=None):
+def extract_selected_threads_processed(data, indexes=None):
     """
     Extrat data from a JSON file.
     Process a list of JSON threads and extract specified keys from each one.
@@ -74,7 +74,8 @@ def extract_selected_threads(data, indexes=None):
     Returns:
     list: A list of dictionaries with the extracted information.
     """
-    # data = open_json_file(data_path)
+    if isinstance(data, str):
+        data = open_json_file(data)
 
     if indexes is None:
         return [extract_thread_details(thread) for thread in data]
@@ -87,13 +88,51 @@ def extract_selected_threads(data, indexes=None):
         return [extract_thread_details(thread) for thread in data[start:end]]
 
 
-# Example usage:
-if __name__ == "__main__":
-    # Replace the path below with your actual JSON file path.
-    data_path = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
+def get_exact_answers(single_sample):
+    """
+    Extracts and processes the 'exe_ans' (exact answer) values from all QA-related entries
+    in a given sample dictionary. Looks for keys named 'qa' or starting with 'qa_'.
 
-    # Extract details from all threads.
-    extracted_threads = extract_selected_threads(data_path, indexes=(0, 2))
+    Processing:
+    - If the answer is a number, round it to 4 decimal places and convert to string.
+    - If the answer is a string, convert to lowercase and remove all spaces.
 
-    # Optionally, print the first extracted thread for inspection.
-    print(extracted_threads)
+    After extraction, the 'exe_ans' field is removed from the sample.
+
+    Args:
+        single_sample (dict): A dictionary containing QA data.
+
+    Returns:
+        tuple: A tuple containing:
+            - list: A list of processed exact answers.
+            - dict: The modified sample dictionary without the 'exe_ans' fields.
+    """
+    exact_answers = []
+    for key in list(single_sample.keys()):
+        if key == "qa" or key.startswith("qa_"):
+            qa_data = single_sample.get(key)
+            # Handle the case where qa_data is a list of dictionaries
+            if isinstance(qa_data, list):
+                for item in qa_data:
+                    if isinstance(item, dict) and "exe_ans" in item:
+                        answer = item["exe_ans"]
+                        if isinstance(answer, (int, float)):
+                            processed = str(round(answer, 4))
+                        elif isinstance(answer, str):
+                            processed = answer.lower().replace(" ", "")
+                        else:
+                            processed = str(answer) if answer is not None else None
+                        exact_answers.append(processed)
+                        del item["exe_ans"]
+            # Handle the case where qa_data is a dictionary
+            elif isinstance(qa_data, dict) and "exe_ans" in qa_data:
+                answer = qa_data["exe_ans"]
+                if isinstance(answer, (int, float)):
+                    processed = str(round(answer, 4))
+                elif isinstance(answer, str):
+                    processed = answer.lower().replace(" ", "")
+                else:
+                    processed = str(answer) if answer is not None else None
+                exact_answers.append(processed)
+                del qa_data["exe_ans"]
+    return exact_answers, single_sample

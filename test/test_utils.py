@@ -4,9 +4,10 @@ import tempfile
 
 import pytest  # noqa: F401
 
-from src import (
-    extract_selected_threads,
+from src.utils import (
+    extract_selected_threads_processed,
     extract_thread_details,
+    get_exact_answers,
     open_json_file,
 )
 
@@ -89,7 +90,7 @@ def test_extract_all_threads():
 
     try:
         # Call the function with the path
-        results = extract_selected_threads(tmpfile_path)
+        results = extract_selected_threads_processed(tmpfile_path)
 
         # Assertions
         assert isinstance(results, list)
