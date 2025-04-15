@@ -43,8 +43,8 @@ repos:
     hooks:
       - id: mypy
 
-  # Strips output (cells, metadata) from Jupyter notebooks before committing
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.8.1
-    hooks:
-      - id: nbstripout
+  # # Strips output (cells, metadata) from Jupyter notebooks before committing
+  # - repo: https://github.com/kynan/nbstripout
+  #   rev: 0.8.1
+  #   hooks:
+  #     - id: nbstripout
