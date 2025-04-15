@@ -16,6 +16,7 @@ The model offers two main functionalities:
 - [Model Features](#model-features)
 - [Tools](#tools)
 - [Project Structure](#project-structure)
+- [Running Tests](#running-tests)
 - [Contributing](#contributing)
 - [License](#license)
 - [Author](#author)
