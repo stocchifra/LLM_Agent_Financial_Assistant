@@ -36,3 +36,7 @@ direct_question:
 # run the test using pytest
 unit_test:
 	docker run --rm -it --env-file .env --entrypoint pytest financial_assistant_llm_agent test
+
+# Run accuracy experiment with Claude 3.5 Sonnet
+experiment:
+    docker run --rm -it --env-file .env financial_assistant_llm_agent python -m src.metrics.accuracy --data_path /app/data/train.json --model claude-3-5-sonnet-20241022 --provider anthropic --tolerance 0.005 --number_samples 10
