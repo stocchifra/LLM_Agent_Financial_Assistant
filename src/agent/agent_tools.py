@@ -134,7 +134,7 @@ def extract_financial_data(input_data):
             input_data = input_data.strip()
             # Replace common problematic smart quotes with standard double quotes.
             input_data = input_data.replace("“", '"').replace("”", '"')
-            print("Raw input after stripping code fence:", repr(input_data))
+            # print("Raw input after stripping code fence:", repr(input_data))
             try:
                 parsed = json.loads(input_data)
             except json.JSONDecodeError as je:

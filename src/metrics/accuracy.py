@@ -88,20 +88,6 @@ def measure_accuracy(
             verbose=verbose,
         )
 
-        # # Invoke the agent according to the prompt style.
-        # if prompt_style == "json-chat":
-        #     response = agent_executor.invoke(
-        #         {
-        #             "input": f"Given the input extract the and then answer the questions {single_sample}."
-        #         }
-        #     )
-        # else:
-        #     response = agent_executor.invoke(
-        #         {
-        #             "input": f"{system_prompt}. Given the input extract the and then answer the questions {single_sample}"
-        #         }
-        #     )
-
         # Process the model's response.
         processed_answers = []
         response = agent_executor.invoke(
