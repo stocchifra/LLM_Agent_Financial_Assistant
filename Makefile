@@ -28,6 +28,7 @@ docker-install:
 # run the container with the chat mode
 chat:
 	docker run --rm -it --env-file .env financial_assistant_llm_agent --mode chat
+	
 # run the container with the direct answer mode
 direct_question:
 	docker run --rm -it --env-file .env financial_assistant_llm_agent --mode DirectAnswer --verbose --handle_parsing_errors

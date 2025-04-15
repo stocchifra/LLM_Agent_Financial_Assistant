@@ -8,6 +8,9 @@ from langchain.agents import (
 from langchain_core._api.deprecation import LangChainDeprecationWarning
 
 warnings.filterwarnings("ignore", category=LangChainDeprecationWarning)
+# from .. import warnings_config # noqa: F401
+import signal
+
 from langchain.memory import ConversationBufferMemory
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage  # noqa: F401
@@ -19,7 +22,13 @@ from src.utils import extract_selected_threads_processed, get_exact_answers
 from .agent_tools import tools
 from .prompt_templates import prompt_selector, system_prompt  # noqa: F401
 
-# from .. import warnings_config # noqa: F401
+
+class TimeoutException(Exception):
+    pass
+
+
+def timeout_handler(signum, frame):
+    raise TimeoutException("Agent execution took too long!")
 
 
 # load environment variables from .env file
@@ -67,7 +76,11 @@ def agent_builder(model, provider, temperature, tools, prompt_style):
         llm = ChatAnthropic(
             model=model,
             temperature=temperature,
+            # temperature=1,
+            # max_tokens=6000,
+            # thinking={"type": "enabled", "budget_tokens": 5000}
         )
+
     elif provider == "google":
         llm = ChatVertexAI(
             model=model,
@@ -120,6 +133,9 @@ def agent_executor_builder(
 
         # add system prompt to memory
         # memory.chat_memory.add_message(SystemMessage(content=system_prompt))
+        # Register the handler
+        # signal.signal(signal.SIGALRM, timeout_handler)
+        # signal.alarm(45)  # set timeout (e.g. 30 seconds)
 
         # create an agent executor with the agent and tools
         agent_executor = AgentExecutor(
@@ -146,77 +162,95 @@ def agent_executor_builder(
         return agent_executor, None
 
 
-# if __name__ == "__main__":
-#     memory_flag = False
-#     data_path = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
-#     # Open the JSON file and load the data.
-#     with open(data_path, "r") as f:
-#         data = json.load(f)
+if __name__ == "__main__":
+    memory_flag = False
+    data_path = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
+    # Open the JSON file and load the data.
+    with open(data_path, "r") as f:
+        data = json.load(f)
 
-#     # print(type(data))
-#     data_processed = extract_selected_threads_processed(data)
-#     exact_answers, single_sample = get_exact_answers(data_processed[0])
+    # print(type(data))
+    data_processed = extract_selected_threads_processed(data)
+    exact_answers, single_sample = get_exact_answers(data_processed[2619])  # 2619
 
-#     # print("exact answer", exact_answers)
-#     # print("single sample", single_sample)
+    # print("exact answer", exact_answers)
+    # print("single sample", single_sample)
 
-#     model_input = single_sample
+    model_input = single_sample
 
-#     model_input = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
+    model_input = "/Users/francescostocchi/ConvFinQA_LLM_Project/data/train.json"
 
-#     agent_executor, memory = agent_executor_builder(
-#         # model="gpt-4o-mini",
-#         # model="claude-3-7-sonnet-20250219",
-#         # model="claude-3-5-haiku-20241022",
-#         # vertex model
-#         # model="claude-3-7-sonnet@20250219",
-#         # model="gemini-2.0-flash",
-#         # model="o3-mini",
-#         # provider="openai",
-#         # provider="anthropic",
-#         provider="google",
-#         temperature=0,
-#         tools=tools,
-#         # prompt_style="tools-agent",
-#         prompt_style="react",
-#         # prompt_style="structured-chat-agent",
-#         # prompt_style="json-chat",
-#         memory_flag=memory_flag,
-#     )
+    agent_executor, memory = agent_executor_builder(
+        # model="gpt-4o",
+        # model="claude-3-7-sonnet-20250219",
+        model="claude-3-5-haiku-20241022",
+        # vertex model
+        # model="claude-3-7-sonnet@20250219",
+        # model="gemini-2.0-flash",
+        # model="o3-mini",
+        # provider="openai",
+        provider="anthropic",
+        # provider="google",
+        temperature=0,
+        tools=tools,
+        # prompt_style="few-shot-CoT",
+        prompt_style="react",
+        # prompt_style="structured-chat-agent",
+        # prompt_style="json-chat",
+        memory_flag=memory_flag,
+    )
 
-#     # If memory is enabled, use the memory to store the conversation history
-#     if memory_flag:
-#         print("Memory is enabled.")
-#         while True:
-#             # user input to the model
-#             user_input = input("User: ")
-#             if user_input.lower() == "exit":
-#                 print("Exiting the program.")
-#                 break
+    # If memory is enabled, use the memory to store the conversation history
+    if memory_flag:
+        print("Memory is enabled.")
+        while True:
+            # user input to the model
+            user_input = input("User: ")
+            if user_input.lower() == "exit":
+                print("Exiting the program.")
+                break
 
-#             # add user input to the memory
-#             memory.chat_memory.add_message(HumanMessage(content=user_input))
-#             # invoke the agent executor with the user input
-#             response = agent_executor.invoke({"input": user_input})
-#             # save the response to the memory
-#             print("AI agent:", response["output"])
-#             memory.chat_memory.add_message(AIMessage(content=response["output"]))
+            # add user input to the memory
+            memory.chat_memory.add_message(HumanMessage(content=user_input))
+            # invoke the agent executor with the user input
+            response = agent_executor.invoke({"input": user_input})
+            # save the response to the memory
+            print("AI agent:", response["output"])
+            memory.chat_memory.add_message(AIMessage(content=response["output"]))
 
-#     # If memory is not enabled, use the model input directly
-#     else:
-#         response = agent_executor.invoke(
-#             {
-#                 # "input": f"""Given the following input extract the informations at the index 2702 and then answer the corresponding questions in the input. {model_input}"""
-#                 "input": f"""{system_prompt}. Pay attention to the format it must respect the guidelines. Task: Given the following input extract the informations and then answer the corresponding questions in the input. Do not output
-#                 any explanantion in the output only the answer {single_sample}"""
-#             }
-#         )
+    # If memory is not enabled, use the model input directly
+    else:
+        response = agent_executor.invoke(
+            {
+                # "input": f"""Given the following input extract the informations at the index 2702 and then answer the corresponding questions in the input. {model_input}"""
+                "input": f"""{system_prompt}. Pay attention to the format it must respect the guidelines. Task: Given the following input extract the informations and then answer the corresponding questions in the input. Do not output
+                any explanantion in the output only the answer {single_sample}"""
+            }
+        )
 
-#         # print(response)
-#         # Split the 'output' string by comma and strip whitespace
-#         answers = response["output"].split(",")
+        print(response["output"])
+        # print(type(response["output"]))
 
-#         intermediate_steps = response["intermediate_steps"]
-#         # print("Intermediate steps:", intermediate_steps)
-#         print("Answers:", answers)
-#         print("Exact answers:", exact_answers)
+        processed_answers = []
+        if isinstance(response["output"], list):
+            for raw_answer in response["output"]:
+                # Check if the answer is a dict
+                if isinstance(raw_answer, dict):
+                    # Extract the answer from the dictionary
+                    answer = raw_answer.get("text", "")
+                    print("answer", answer)
+                else:
+                    answer = raw_answer.strip().lower().replace(" ", "")
+                try:
+                    processed_answers.append(round(float(answer), 4))
+                except ValueError:
+                    processed_answers.append(answer)
+
+        print("Processed answers:", processed_answers)
+        # Split the 'output' string by comma and strip whitespace
+        # answers = response["output"].split(",")
+
+        intermediate_steps = response["intermediate_steps"]
+        # print("Intermediate steps:", intermediate_steps)
+        # print("Answers:", answers)
+        print("Exact answers:", exact_answers)

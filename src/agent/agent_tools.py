@@ -212,66 +212,60 @@ def perform_math_calculus(expression: str) -> Union[float, str]:
 
 
 # List of tools to be used in the agent
+
 tools = [
     Tool(
         name="arithmetic_calculator",
-        description="""Performs arithmetic calculations based on the provided expression. 
-        Input: Mathematical expression as a string (e.g., "2 + 2", "10 / 3", "5 * 6", "(8 - 4) / 2", "5 ** 2").
-        Output: Result of the arithmetic operation, rounded to 4 decimal places.
-        Example output:
-        - For input "2 + 2", output: 4.0000
-        - For input "10 / 3", output: 3.3333
-        """,
+        description="""Performs arithmetic calculations on a given mathematical expression.
+
+    Input: A string representing a valid arithmetic expression (for example, "2 + 2", "10 / 3", "(8 - 4) / 2", "5 * 6", or "5 ** 2"). The expression must be provided as a single quoted string without any additional text or explanations.
+
+    Output: A string representing the result of the arithmetic operation, rounded to exactly 4 decimal places. The output should contain only the numeric result.
+
+    IMPORTANT FORMAT:
+    - When calling this tool, use the following format strictly:
+    Action: arithmetic_calculator
+    Action Input: "<your arithmetic expression>"
+    - Do not include extra text or formatting in the expression.
+
+    Example Outputs:
+    - For Action Input: "2 + 2" the output should be: "4.0000"
+    - For Action Input: "(10 / 4) + 2.5" the output should be: "5.0000"
+    - For Action Input: "22.35 / 100" the output should be: "0.2235"
+    - For Action Input: "(5 * 6) / 3" the output should be: "10.0000" 
+    """,
         func=perform_math_calculus,
     ),
     Tool(
         name="extract_financial_informations",
         description="""
-    Extracts structured financial information using the `extract_financial_data` function.
-
-    **Trigger Condition:**
-    - This tool is ONLY triggered when the input is a JSON string that represents a file path ending with ".json".
-    - If the input is a JSON-formatted string containing data (i.e., the financial information is embedded directly), 
-      this tool should NOT be triggered and the model will elaborate the string directly.
-
-    **Accepted Input Formats:**
-
-    **1. File Path Input (with indexes):**
-    - The input must be a JSON string representing a dictionary with a `tool_input` key.
-    - The `tool_input` value must be a dictionary with:
-        - `file_path`: A string that **must end with .json**. This specifies the path to a JSON file on disk.
-        - `indexes` (optional): 
-            - If provided, it can be an integer (for a single thread), a list of indices, or a tuple (start, end)
-              to extract a specific subset of threads from the file.
-    - **Example:**
-        '''{
-            "tool_input": {
-                "file_path": "data/financial_threads.json",
-                "indexes": [3, 7, 15]
-            }
-        }'''
-
-    **2. Direct JSON Content Input (Not Triggering This Tool):**
-    - If the input is a JSON-formatted string representing the data directly 
-      (i.e., not wrapped in a `tool_input` dictionary), this tool should NOT be triggered.
-    - **Example:**
-        '''{
-            "pre_text": ["Example introduction"],
-            "post_text": ["Example conclusion"],
-            "table": [["Column1", "Column2"], ["Value1", "Value2"]],
-            "qa": [{"question": "What is the key metric?"}]
-        }'''
-
-    **Output:**
-    - The function returns a list of dictionaries, each containing:
-        - "pre_text": A list of paragraphs that appear before the table.
-        - "post_text": A list of paragraphs that appear after the table.
-        - "table": A nested list representing tabular data.
-        - "qa": A list of dictionaries, each containing at least a "question".
-    - If an error occurs, a dictionary with an "error" key is returned.
-    - As a backup, if no proper extraction is possible but date patterns (YYYY-MM-DD) are found in the input,
-      they are returned in an "extracted_dates" field.
-    """,
+        Extracts structured financial information from JSON files.
+        
+        **IMPORTANT: This tool is ONLY triggered when:**
+        - The input is a properly formatted JSON string.
+        - The JSON string clearly indicates a file path that must be a string ending with ".json".
+        - The input also explicitly indicates one or more index values (or a range) that define which threads to extract.
+        
+        **Input Format:**
+        The input must be a JSON string representing a dictionary with:
+        - `tool_input`: A dictionary that MUST include:
+        - `file_path`: A string representing the file path; it must end with ".json" (REQUIRED).
+        - `indexes`: A clear indication of the index or indexes to extract; this can be a single integer, a list of integers, or a tuple of integers.
+        
+        **Examples of VALID inputs that will trigger this tool:**
+        ```
+        {"tool_input": {"file_path": "/data/financial_threads.json", "indexes": 2}}
+        {"tool_input": {"file_path": "/data/financial_threads.json", "indexes": [3, 7, 15]}}
+        {"tool_input": {"file_path": "/data/financial_threads.json", "indexes": [2, 10]}}
+        ```
+        
+        **Do NOT trigger this tool for:**
+        - Plain text requests such as "extract data from /data/train.json at index 2" that do not use a properly formatted JSON string.
+        - JSON content that does not explicitly specify both the file path (ending with ".json") and the index or index range.
+        
+        **Output:**
+        Returns structured financial data as a list of dictionaries containing `pre_text`, `post_text`, `table`, and `qa` elements.
+        """,
         func=extract_financial_data,
     ),
 ]
