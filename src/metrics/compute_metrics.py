@@ -24,17 +24,6 @@ def compute_single_sample_accuracy(expected_answers, actual_answers, tolerance=0
           - "numeric_errors": list of numeric errors for the numeric comparisons (empty if none).
     """
 
-    # def process_answer(ans):
-    #     if isinstance(ans, str):
-    #         norm = ans.strip().lower().replace(" ", "")
-    #     try:
-    #         return round(float(norm), 4)
-    #     except ValueError:
-    #         return norm
-
-    # processed_expected = [process_answer(ans) for ans in expected_answers]
-    # processed_actual = [process_answer(ans) for ans in actual_answers]
-
     accuracy_measurements = []
     numeric_errors = []
 
