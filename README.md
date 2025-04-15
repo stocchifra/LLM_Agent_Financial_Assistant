@@ -39,9 +39,11 @@ make run             # Runs container interactively using environment variables 
 
 ### Chat Mode
 
-Interactively chat with the financial assistant. By default, it uses `gpt-4o` and `structured-chat-agent` prompt style, but you can select other models from OpenAI, Anthropic, or Google.
-
-Example command:
+Interactively chat with the financial assistant. By default, it uses `gpt-4o` and `structured-chat-agent`. You can run the default chat using the command
+```bash
+make chat
+```
+prompt style, but you can select other models from OpenAI, Anthropic, or Google. Example of command:
 
 ```bash
 docker run --rm -it --env-file .env financial_assistant_llm_agent --mode chat --model gpt-4o-mini --prompt_style react
@@ -49,9 +51,12 @@ docker run --rm -it --env-file .env financial_assistant_llm_agent --mode chat --
 
 ### Direct Answer Mode
 
-Get a fast response without interactive chat. Default settings use `gpt-4o` and the `react` prompt style.
+Get a fast response without interactive chat. Default settings use `gpt-4o` and the `react` prompt style. You can run the default direct answer using the command:
+```bash
+make DirectAnswer
+```
 
-Example command:
+Example command to change model and prompt:
 
 ```bash
 docker run --rm -it --env-file .env financial_assistant_llm_agent --mode DirectAnswer --model gpt-4o-mini --prompt_style custom
@@ -124,6 +129,12 @@ The agent includes two essential tools:
 ```
 
 ---
+
+## Running Tests
+To run tests, make sure you're inside the Docker container and execute:
+```bash
+make test
+```
 
 ## Contributing
 
