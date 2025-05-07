@@ -151,7 +151,7 @@ MIT License
 
 ## Author
 
-Francesco Stocci
+Francesco Stocchi
 
 ---
 
